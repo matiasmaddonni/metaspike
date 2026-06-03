@@ -1,6 +1,15 @@
+"use client";
+
+import type { MouseEvent as ReactMouseEvent } from "react";
 import type { BucketedRow, CopyBreakdown } from "@/lib/types/cardStats";
+import { thumbUrl } from "@/lib/scryfallImage";
 import styles from "../landing.module.css";
 import { ColorPips } from "./ColorPip";
+
+type Props = {
+  row: BucketedRow;
+  onHoverChange?: (row: BucketedRow | null, x: number, y: number) => void;
+};
 
 function formatCopyBreakdown(b: CopyBreakdown): string {
   const entries: Array<[string, number]> = [
@@ -15,15 +24,32 @@ function formatCopyBreakdown(b: CopyBreakdown): string {
   return "Copies run:  " + nonZero.map(([k, n]) => `${n}× ${k}`).join(" · ");
 }
 
-export function CardRow({ row }: { row: BucketedRow }) {
+export function CardRow({ row, onHoverChange }: Props) {
   const pct = Math.round(row.inclusion_pct * 1000) / 10;
   const meterWidth = `${Math.max(0, Math.min(100, row.inclusion_pct * 100))}%`;
+  const thumb = thumbUrl(row);
+
+  const handleMouseEnter = (e: ReactMouseEvent<HTMLDivElement>) => {
+    onHoverChange?.(row, e.clientX, e.clientY);
+  };
+  const handleMouseMove = (e: ReactMouseEvent<HTMLDivElement>) => {
+    onHoverChange?.(row, e.clientX, e.clientY);
+  };
+  const handleMouseLeave = () => {
+    onHoverChange?.(null, 0, 0);
+  };
+
   return (
-    <div className={styles.row}>
+    <div
+      className={styles.row}
+      onMouseEnter={handleMouseEnter}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
       <div className={styles.thumb}>
-        {row.image_url && (
+        {thumb && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={row.image_url} alt="" loading="lazy" />
+          <img src={thumb} alt="" loading="lazy" />
         )}
       </div>
       <div className={styles.name}>

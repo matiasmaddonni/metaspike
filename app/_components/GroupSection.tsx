@@ -1,4 +1,5 @@
 import type { BucketGroup } from "@/lib/buckets";
+import type { BucketedRow } from "@/lib/types/cardStats";
 import styles from "../landing.module.css";
 import { CardRow } from "./CardRow";
 
@@ -14,7 +15,12 @@ const BUCKET_CLASS: Record<BucketGroup["bucket"], string> = {
   tech: styles.ghdTech,
 };
 
-export function GroupSection({ group }: { group: BucketGroup }) {
+type Props = {
+  group: BucketGroup;
+  onHoverChange?: (row: BucketedRow | null, x: number, y: number) => void;
+};
+
+export function GroupSection({ group, onHoverChange }: Props) {
   return (
     <section>
       <div className={`${styles.ghd} ${BUCKET_CLASS[group.bucket]}`}>
@@ -27,7 +33,13 @@ export function GroupSection({ group }: { group: BucketGroup }) {
       {group.rows.length === 0 ? (
         <div className={styles.empty}>— none in range —</div>
       ) : (
-        group.rows.map((row) => <CardRow key={`${row.card_name}-${row.zone}`} row={row} />)
+        group.rows.map((row) => (
+          <CardRow
+            key={`${row.card_name}-${row.zone}`}
+            row={row}
+            onHoverChange={onHoverChange}
+          />
+        ))
       )}
     </section>
   );
