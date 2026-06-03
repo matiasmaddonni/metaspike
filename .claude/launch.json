@@ -2,16 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "next-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
+    },
+    {
       "name": "supabase-local",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["supabase", "start"],
       "port": 54321
-    },
-    {
-      "name": "supabase-studio",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["supabase", "start"],
-      "port": 54323
     }
   ]
 }

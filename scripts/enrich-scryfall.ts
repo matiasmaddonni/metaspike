@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { createAdminClient } from "../lib/supabase.js";
+import { createAdminClient } from "../lib/supabase/admin.js";
 import { loadAllCards } from "../lib/scryfall/bulk.js";
 import {
   buildIndex,

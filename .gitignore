@@ -8,6 +8,11 @@
 
 # typescript build artifacts
 *.tsbuildinfo
+next-env.d.ts
+
+# Next.js build / cache
+/.next
+/out
 
 # OS
 .DS_Store

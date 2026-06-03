@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { createAdminClient } from "../lib/supabase.js";
+import { createAdminClient } from "../lib/supabase/admin.js";
 import { fetchEvent } from "../lib/mtgo/fetch.js";
 import { parseEvent, NotTournamentError } from "../lib/mtgo/parse.js";
 

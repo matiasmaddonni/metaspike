@@ -1,0 +1,38 @@
+/* metaspike — design tokens + base styles
+   Source of truth: design_handoff_metaspike/README.md (Design Tokens). */
+
+:root {
+  --bg: #0c0d10;
+  --panel: #141518;
+  --panel-2: #101113;
+  --line: #23252b;
+  --row-divider: #181a1f;
+  --meter-track: #1c1e24;
+  --control-bg: #0a0b0e;
+  --dashed-border: #34373f;
+  --ink: #e9eaee;
+  --ink2: #cfd2d8;
+  --dim: #868a93;
+  --accent: #ff4f8b;
+  --on-accent: #16120e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-plex-sans), -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.mono {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+}

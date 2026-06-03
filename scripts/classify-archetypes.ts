@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { createAdminClient } from "../lib/supabase.js";
+import { createAdminClient } from "../lib/supabase/admin.js";
 
 type Zone = "main" | "side" | "any";
 
