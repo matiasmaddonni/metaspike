@@ -7,6 +7,7 @@ export default defineConfig([
     "data/**",
     "supabase/.temp/**",
     "supabase/.branches/**",
+    "design_handoff_metaspike/**",
   ]),
   ...tseslint.configs.recommended,
   {

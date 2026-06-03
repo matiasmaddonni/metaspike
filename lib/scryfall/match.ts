@@ -4,6 +4,20 @@ export type CardIndex = {
   byName: Map<string, ScryfallCard>;
 };
 
+// Layouts that aren't real playable cards (collectibles, tokens, format-specific).
+// Skipping these prevents the matcher from picking showcase art entries that
+// share names with real cards but are marked not_legal in every constructed format.
+const NON_PLAYABLE_LAYOUTS = new Set([
+  "art_series",
+  "token",
+  "double_faced_token",
+  "emblem",
+  "planar",
+  "scheme",
+  "vanguard",
+  "host",
+]);
+
 function frontFaceName(card: ScryfallCard): string {
   return card.card_faces?.[0]?.name ?? card.name;
 }
@@ -11,6 +25,7 @@ function frontFaceName(card: ScryfallCard): string {
 export function buildIndex(cards: ScryfallCard[]): CardIndex {
   const byName = new Map<string, ScryfallCard>();
   for (const c of cards) {
+    if (c.layout && NON_PLAYABLE_LAYOUTS.has(c.layout)) continue;
     addKey(byName, c.name, c);
     if (c.card_faces) {
       for (const f of c.card_faces) addKey(byName, f.name, c);
