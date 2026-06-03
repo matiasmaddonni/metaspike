@@ -18,16 +18,30 @@ console.log(
   `[bulk] ${all.length} cards, index ${idx.byName.size} keys, ${Date.now() - t0}ms`,
 );
 
-const { data: nameRows, error: nameErr } = await supa
-  .from("deck_cards")
-  .select("card_name")
-  .is("scryfall_id", null);
-if (nameErr) throw new Error(`deck_cards select failed: ${nameErr.message}`);
+async function paginateNames(): Promise<string[]> {
+  const PAGE = 1000;
+  const all: string[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supa
+      .from("deck_cards")
+      .select("card_name")
+      .is("scryfall_id", null)
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`deck_cards select failed: ${error.message}`);
+    if (!data || data.length === 0) break;
+    for (const r of data) all.push(r.card_name as string);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
 
-const uniqueNames = Array.from(
-  new Set((nameRows ?? []).map((r) => r.card_name as string)),
-).sort();
-console.log(`[resolve] ${uniqueNames.length} unique unresolved card_names`);
+const allUnresolved = await paginateNames();
+const uniqueNames = Array.from(new Set(allUnresolved)).sort();
+console.log(
+  `[resolve] ${uniqueNames.length} unique card_names across ${allUnresolved.length} unresolved rows`,
+);
 
 const matched: Array<{
   card_name: string;

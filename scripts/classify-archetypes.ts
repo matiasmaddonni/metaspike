@@ -39,18 +39,29 @@ const archetypesById = new Map<number, Archetype>(
   (archetypes ?? []).map((a) => [a.id, a as Archetype]),
 );
 
-const { data: decks, error: decksErr } = await supa
-  .from("decks")
-  .select("id, format, archetype_id");
-if (decksErr) throw new Error(`decks select failed: ${decksErr.message}`);
+async function paginate<T>(table: string, select: string): Promise<T[]> {
+  const PAGE = 1000;
+  const all: T[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supa
+      .from(table)
+      .select(select)
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`${table} select failed: ${error.message}`);
+    if (!data || data.length === 0) break;
+    all.push(...(data as T[]));
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
 
-const { data: cards, error: cardsErr } = await supa
-  .from("deck_cards")
-  .select("deck_id, card_name, zone, qty");
-if (cardsErr) throw new Error(`deck_cards select failed: ${cardsErr.message}`);
+const decks = await paginate<Deck>("decks", "id, format, archetype_id");
+const cards = await paginate<DeckCard>("deck_cards", "deck_id, card_name, zone, qty");
 
 const deckCards = new Map<number, DeckCard[]>();
-for (const c of (cards ?? []) as DeckCard[]) {
+for (const c of cards) {
   let list = deckCards.get(c.deck_id);
   if (!list) {
     list = [];
@@ -105,7 +116,7 @@ let toUpdate = 0;
 let ambiguousCount = 0;
 const writes: Array<{ id: number; archetype_id: number | null }> = [];
 
-for (const d of (decks ?? []) as Deck[]) {
+for (const d of decks) {
   const candidates: Archetype[] = [];
   for (const archetypeId of rulesByArchGroup.keys()) {
     const arch = archetypesById.get(archetypeId);
@@ -134,7 +145,7 @@ for (const d of (decks ?? []) as Deck[]) {
 }
 
 console.log(
-  `[classifier] decks=${decks?.length ?? 0} rules=${rules.length} archetypes=${rulesByArchGroup.size} ambiguous=${ambiguousCount} to_update=${toUpdate}`,
+  `[classifier] decks=${decks.length} deck_cards=${cards.length} rules=${rules.length} archetypes=${rulesByArchGroup.size} ambiguous=${ambiguousCount} to_update=${toUpdate}`,
 );
 
 for (const w of writes) {

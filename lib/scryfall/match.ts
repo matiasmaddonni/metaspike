@@ -1,4 +1,5 @@
 import type { ScryfallCard } from "./bulk.js";
+import { aliasMtgoName } from "./aliases.js";
 
 export type CardIndex = {
   byName: Map<string, ScryfallCard>;
@@ -49,7 +50,8 @@ export function matchByMtgoName(
   name: string,
   index: CardIndex,
 ): ScryfallCard | undefined {
-  return index.byName.get(name.toLowerCase().trim());
+  const aliased = aliasMtgoName(name);
+  return index.byName.get(aliased.toLowerCase().trim());
 }
 
 export function frontFaceFor(card: ScryfallCard): string {
