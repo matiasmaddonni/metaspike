@@ -48,7 +48,16 @@ Copy `.env.example` → `.env` and fill in the `SUPABASE_SERVICE_ROLE_KEY` print
 
 ## Status
 
-Phase 1 complete (probe + scaffold + schema + archetype tables). Phase 2 next (fetch + parse + ingest + Scryfall enrichment + initial RPCs). See [PLAN.md](PLAN.md) for the full task list.
+Backend complete through all 4 RPCs in the [SPEC.md](SPEC.md) contract:
+
+- `list_decks`, `compare_decks` (flat default + `p_split_by_zone` variant)
+- `archetype_card_stats`, `archetype_winrate`
+
+End-to-end pipeline (fetch → parse → ingest → Scryfall enrich → classify) verified on a single Modern Challenge. Local stack is the only live Supabase instance; hosted project deferred.
+
+Design handoff lives in [`design_handoff_metaspike/`](design_handoff_metaspike/) — HTML mock + mock RPC data + design tokens. UI build is next.
+
+See [PLAN.md](PLAN.md) for the full task list.
 
 ## Data rules — non-negotiable
 

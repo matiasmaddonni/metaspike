@@ -117,9 +117,10 @@ CHECK (format IN ('modern', 'standard', 'pioneer'))
 ### `archetype`
 | col | type | notes |
 |---|---|---|
-| `id` | serial PK | |
+| `id` | serial PK | backend FK target |
 | `format` | text NOT NULL | CHECK constraint above |
 | `name` | text NOT NULL | e.g. "Boros Energy" |
+| `slug` | text UNIQUE NULL | URL-safe identifier for UI routing (e.g. `boros-energy`); nullable until UI populates |
 | `description` | text | |
 | `UNIQUE` | `(format, name)` | same name allowed across formats |
 
@@ -168,11 +169,18 @@ All RPCs are `SECURITY DEFINER`, granted `EXECUTE` to `anon` and `authenticated`
 - `record` derived from `score` + `event_size` + Swiss-round heuristic at query time (e.g. `"5-2"`). Null for playoff finishers where Swiss/bracket can't be separated.
 - Excludes unclassified decks (archetype_id IS NULL).
 
-### `compare_decks(p_deck_id_a int, p_deck_id_b int)`
-- Operates over `main + side`. Each row is tagged with its `zone` so the UI can group.
-- `only_in_a`: `[{card, qty, zone}]` cards present in A but not in B for that zone.
+### `compare_decks(p_deck_id_a int, p_deck_id_b int, p_split_by_zone boolean default false)`
+
+Default behavior (`p_split_by_zone = false`) matches the design handoff mock: cards are aggregated by name across main + side, one row per card. UI design expects this shape.
+
+- `only_in_a`: `[{card, qty}]` cards present in A but not in B (`qty` is total across main+side).
 - `only_in_b`: same, reversed.
-- `shared`: `[{card, qty_a, qty_b, zone}]` cards present in both with both quantities.
+- `shared`: `[{card, qty_a, qty_b}]` cards present in both decks.
+
+`p_split_by_zone = true` returns the zone-tagged variant for callers that need main/side distinction:
+- `only_in_a`: `[{card, qty, zone}]`
+- `only_in_b`: same, reversed
+- `shared`: `[{card, qty_a, qty_b, zone}]`
 
 ---
 
@@ -314,4 +322,8 @@ Acceptance for "backfill done":
 | 2026-06-03 | `archetype_winrate` adds `n_decks_with_record` | UI can show winrate basis without breaking original contract |
 | 2026-06-03 | Ingest scope widened from "Challenge only" → all tournament events (Challenge, Showcase Challenge, RC Qualifier, RC Super Qualifier) | User clarification after probe; prelims still excluded; leagues still excluded |
 | 2026-06-03 | `decks.score int NOT NULL` is the **only** stored W/L signal; no derived columns on decks | User preference: store source-of-truth match points; RPCs derive W-L on the fly using `score + event_size + swiss-round heuristic` |
+| 2026-06-03 | `compare_decks` default = flat shape (no zone); `p_split_by_zone boolean default false` for zone-tagged variant | Design handoff mock uses flat `{card,qty}`; backend serves both shapes via one function for forward compatibility |
+| 2026-06-03 | `archetype.slug text UNIQUE NULL` added; PK stays `serial` int | Design uses string slugs for URL routing (`boros-energy`); backend keeps int FK for `decks.archetype_id`. Both available |
+| 2026-06-03 | `copy_breakdown` `"5+"` bucket reaffirmed (kept) | Forward-compatible; design UI ignores unknown keys. Preserves Petitioners/Dragon's Approach signal |
+| 2026-06-03 | UI built in same repo, Next.js (matches madd-collectibles) | Monorepo-ish; backend + UI share Supabase client patterns. Hosted Supabase deferred until UI deploy needed |
 | 2026-06-03 | Add `events.event_tier text` (CHECK in `challenge`/`showcase_challenge`/`qualifier`/`super_qualifier`) | Classify at ingest from description so RPCs can filter by tier later if needed |
