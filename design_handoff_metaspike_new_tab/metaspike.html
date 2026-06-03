@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>metaspike</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  html,body{margin:0;padding:0;background:#0c0d10;}
+  #root{min-height:100vh;}
+</style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script src="data/mockData.js"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="shared.jsx"></script>
+  <script type="text/babel" src="lists.jsx"></script>
+
+  <script type="text/babel">
+    const { useState } = React;
+    const M = window.MTG;
+    const { ListsView } = window.MSLists;
+    const PIP = { W: "#efe7cf", U: "#5b87b8", B: "#7a7a82", R: "#cf5640", G: "#4f9a68" };
+
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "accent": "#ff4f8b",
+      "density": "regular",
+      "showArt": true,
+      "detailStyle": "columns",
+      "showSpice": true
+    }/*EDITMODE-END*/;
+
+    // ---- metaspike logo: a meta "spike" (EKG-style sharp peak) -------------
+    function Logo({ size = 22 }) {
+      return (
+        <span className="ms-logo">
+          <svg className="ms-mark" width={size + 8} height={size} viewBox="0 0 30 22" fill="none">
+            <path d="M1 15 H8 L12 15 L15.5 3 L19 13 L21.5 9 H29" stroke="var(--acc)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="ms-word">metaspike</span>
+        </span>
+      );
+    }
+
+    function Pips({ colors }) {
+      if (!colors || !colors.length) return <span className="ms-pip ms-pipc" />;
+      return <span className="ms-pips">{colors.map((c) => <span key={c} className="ms-pip" style={{ background: PIP[c] }} />)}</span>;
+    }
+
+    function HoverArt({ row, anchor }) {
+      if (!row) return null;
+      const top = Math.min(anchor.y, window.innerHeight - 360);
+      return <div className="ms-hover" style={{ top, left: Math.min(anchor.x + 20, window.innerWidth - 260) }}><img src={row.card_url} alt="" /></div>;
+    }
+
+    function Row({ r, showArt, onHover, onLeave }) {
+      const pct = Math.round(r.inclusion_pct * 100);
+      const b = r.copy_breakdown;
+      const tip = [4, 3, 2, 1].filter((k) => b[k]).map((k) => `${b[k]}× ${k}-of`).join("  ·  ");
+      return (
+        <div className="ms-row" onMouseEnter={(e) => onHover(r, e)} onMouseMove={(e) => onHover(r, e)} onMouseLeave={onLeave}>
+          {showArt && <span className="ms-thumb"><img src={r.art_url} alt="" loading="lazy" /></span>}
+          <span className="ms-name">
+            <span className="ms-nm">{r.card_name}</span>
+            <span className="ms-meta"><Pips colors={r.colors} /><span className="ms-ty">{r.type_line}</span></span>
+          </span>
+          <span className="ms-incl">
+            <span className="ms-meter"><span style={{ width: pct + "%" }} /></span>
+            <span className="ms-pct">{pct}<i>%</i></span>
+          </span>
+          <span className="ms-avg" title={"Copies run:  " + tip}>{r.avg_copies.toFixed(2)}<i>avg</i></span>
+          <span className="ms-n">{r.n_decks}</span>
+        </div>
+      );
+    }
+
+    const GROUPS = [
+      { id: "core", label: "CORE", rule: "≥ 85%", desc: "the non-negotiable shell" },
+      { id: "flex", label: "FLEX", rule: "20–85%", desc: "where the deck is decided" },
+      { id: "tech", label: "TECH", rule: "< 20%", desc: "metagame calls & one-ofs" },
+    ];
+
+    function App() {
+      const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+      const [zone, setZone] = useState("main");
+      const [mode, setMode] = useState("aggregate");
+      const [hover, setHover] = useState(null);
+      const [anchor, setAnchor] = useState({ x: 0, y: 0 });
+      const onHover = (r, e) => { setHover(r); setAnchor({ x: e.clientX, y: e.clientY }); };
+      const onLeave = () => setHover(null);
+
+      const data = M.archetype_card_stats({ p_zone: zone });
+      const wr = M.archetype_winrate();
+      const g = { core: [], flex: [], tech: [] };
+      data.rows.forEach((r) => g[r.bucket].push(r));
+
+      const events = M.list_events();
+      const nLists = events.reduce((s, e) => s + e.n_decks, 0);
+
+      const exportList = () => navigator.clipboard && navigator.clipboard.writeText(M.exportMTGO(M.DECK_A));
+
+      const isLists = mode === "lists";
+      const rootStyle = { "--acc": t.accent, "--acc-ink": "#16120e" };
+
+      return (
+        <div className={"ms-app ms-d-" + t.density + (t.showArt ? " ms-showart" : " ms-noart")} style={rootStyle}>
+          <style>{CSS}</style>
+
+          <header className="ms-top">
+            <Logo />
+            <div className="ms-filters">
+              <span className="ms-fg"><label>FORMAT</label><button className="ms-sel">Modern<i>▾</i></button></span>
+              <span className="ms-fg"><label>ARCHETYPE</label><button className="ms-sel">Boros Energy<i>▾</i></button></span>
+              <span className="ms-fg"><label>DATE</label><button className="ms-sel">Last 90 days<i>▾</i></button></span>
+              <span className="ms-fg ms-fixed"><label>SCOPE</label><span>CHALLENGES</span></span>
+            </div>
+            <div className="ms-zone-wrap">
+              <div className="ms-mode">
+                <button className={!isLists ? "on" : ""} onClick={() => setMode("aggregate")}>AGGREGATE</button>
+                <button className={isLists ? "on" : ""} onClick={() => setMode("lists")}>LISTS</button>
+              </div>
+              {!isLists && (
+                <div className="ms-zone">
+                  <button className={zone === "main" ? "on" : ""} onClick={() => setZone("main")}>MAIN</button>
+                  <button className={zone === "side" ? "on" : ""} onClick={() => setZone("side")}>SIDE</button>
+                </div>
+              )}
+            </div>
+          </header>
+
+          <div className="ms-sub">
+            <div className="ms-arche">
+              <h1>Boros Energy</h1>
+              <div className="ms-archemeta">
+                {isLists ? (
+                  <>
+                    <span><b>{nLists}</b> lists</span><span className="ms-dot">·</span>
+                    <span><b>{events.length}</b> events</span><span className="ms-dot">·</span>
+                    <span>by event, then finish</span>
+                  </>
+                ) : (
+                  <>
+                    <span><b>{data.meta.total_decks}</b> decks</span><span className="ms-dot">·</span>
+                    <span><b>{wr.n_events}</b> events</span><span className="ms-dot">·</span>
+                    <span>Modern Challenges</span><span className="ms-dot">·</span>
+                    <span>last 90 days</span>
+                  </>
+                )}
+              </div>
+            </div>
+            {isLists ? (
+              <div className="ms-listnote">
+                <span className="ms-spdot2" /> pink-flagged cards run in under {Math.round(M.SPICE_THRESHOLD * 100)}% of the field — the spice that sets a list apart
+              </div>
+            ) : (
+              <>
+                <div className="ms-wr">
+                  <div className="ms-wrcore">
+                    <span className="ms-wrnum">{(wr.win_pct * 100).toFixed(1)}<i>%</i></span>
+                    <span className="ms-wrcol"><b>{wr.match_wins}–{wr.match_losses}</b><span>match record</span></span>
+                  </div>
+                  <div className="ms-wrwarn"><i>▲</i> among published winners — survivorship-biased, not a true win rate</div>
+                </div>
+                <button className="ms-export" onClick={exportList}><span>⎘</span> EXPORT MTGO</button>
+              </>
+            )}
+          </div>
+
+          {isLists ? (
+            <ListsView detailStyle={t.detailStyle} showSpice={t.showSpice} showArt={t.showArt}
+              onHover={onHover} onLeave={onLeave} />
+          ) : (
+          <React.Fragment>
+          <div className="ms-colhd">
+            {t.showArt && <span></span>}
+            <span>CARD</span>
+            <span>INCLUSION ACROSS LISTS</span>
+            <span>AVG</span>
+            <span>N</span>
+          </div>
+
+          {GROUPS.map((grp) => (
+            <section key={grp.id} className={"ms-group ms-" + grp.id}>
+              <div className="ms-ghd">
+                <span className="ms-gtick" />
+                <span className="ms-glabel">{grp.label}</span>
+                <span className="ms-grule">{grp.rule}</span>
+                <span className="ms-gdesc">{grp.desc}</span>
+                <span className="ms-gcount">{g[grp.id].length} cards</span>
+              </div>
+              {g[grp.id].map((r) => <Row key={r.card_name} r={r} showArt={t.showArt} onHover={onHover} onLeave={() => setHover(null)} />)}
+              {!g[grp.id].length && <div className="ms-empty">— none in range —</div>}
+            </section>
+          ))}
+
+          <footer className="ms-foot">
+            <Logo size={16} />
+            <span className="ms-footnote">Inclusion & copy counts computed across {data.meta.total_decks} published Challenge lists. Hover a card for full art; hover AVG for the copy-count split.</span>
+          </footer>
+          </React.Fragment>
+          )}
+
+          <HoverArt row={hover} anchor={anchor} />
+
+          <TweaksPanel>
+            <TweakSection label="Accent" />
+            <TweakColor label="Signal color" value={t.accent}
+              options={["#ff6a3d", "#8b7bff", "#ff4f8b", "#3fb6a8", "#e8e2d4"]}
+              onChange={(v) => setTweak("accent", v)} />
+            <TweakSection label="Lists view" />
+            <TweakRadio label="Decklist style" value={t.detailStyle} options={["columns", "rows", "spice"]}
+              onChange={(v) => setTweak("detailStyle", v)} />
+            <TweakToggle label="Flag spice" value={t.showSpice} onChange={(v) => setTweak("showSpice", v)} />
+            <TweakSection label="Layout" />
+            <TweakRadio label="Density" value={t.density} options={["compact", "regular", "comfy"]}
+              onChange={(v) => setTweak("density", v)} />
+            <TweakToggle label="Card art" value={t.showArt} onChange={(v) => setTweak("showArt", v)} />
+          </TweaksPanel>
+        </div>
+      );
+    }
+
+    const CSS = `
+    .ms-app{--bg:#0c0d10;--pan:#141518;--pan2:#101113;--line:#23252b;--ink:#e9eaee;--ink2:#cfd2d8;--dim:#868a93;
+      background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;min-height:100vh;padding-bottom:30px;}
+    .ms-app *{box-sizing:border-box;}
+
+    .ms-logo{display:inline-flex;align-items:center;gap:8px;}
+    .ms-mark{flex:0 0 auto;}
+    .ms-word{font-family:'IBM Plex Mono',monospace;font-weight:600;letter-spacing:.5px;font-size:17px;color:var(--ink);}
+
+    .ms-top{display:flex;align-items:center;gap:30px;padding:0 26px;height:62px;background:linear-gradient(180deg,#15161a,#0d0e11);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30;}
+    .ms-filters{display:flex;gap:8px;align-items:flex-end;}
+    .ms-fg{display:flex;flex-direction:column;gap:4px;}
+    .ms-fg label{font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:1.5px;color:var(--dim);padding-left:2px;}
+    .ms-sel{display:flex;align-items:center;gap:8px;background:#0a0b0e;color:var(--ink);border:1px solid var(--line);border-radius:5px;padding:7px 11px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;}
+    .ms-sel i{font-style:normal;color:var(--dim);font-size:10px;}
+    .ms-sel:hover{border-color:#3a3e48;}
+    .ms-fixed span{display:inline-flex;align-items:center;height:32px;padding:0 11px;border:1px dashed #34373f;border-radius:5px;color:var(--dim);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;}
+    .ms-zone{margin-left:auto;display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;}
+    .ms-zone button{background:#0a0b0e;color:var(--dim);border:0;padding:9px 16px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1.5px;cursor:pointer;transition:all .12s;}
+    .ms-zone button.on{background:var(--acc);color:var(--acc-ink);font-weight:700;}
+    .ms-zone-wrap{margin-left:auto;display:flex;align-items:center;gap:10px;}
+    .ms-mode{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;}
+    .ms-mode button{background:#0a0b0e;color:var(--dim);border:0;padding:9px 16px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1.5px;cursor:pointer;transition:all .12s;}
+    .ms-mode button:first-child{border-right:1px solid var(--line);}
+    .ms-mode button.on{background:#1c1e24;color:var(--ink);font-weight:700;}
+    .ms-mode button:hover:not(.on){color:var(--ink2);}
+
+    .ms-listnote{margin-left:auto;display:flex;align-items:center;gap:9px;max-width:420px;text-align:right;font-size:12px;color:var(--dim);line-height:1.5;}
+    .ms-spdot2{width:8px;height:8px;border-radius:50%;background:var(--acc);box-shadow:0 0 9px var(--acc);flex:0 0 auto;}
+
+    .ms-sub{display:flex;align-items:center;gap:28px;padding:20px 26px;border-bottom:1px solid var(--line);background:var(--pan2);}
+    .ms-arche h1{margin:0;font-size:30px;font-weight:700;letter-spacing:-.5px;}
+    .ms-archemeta{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:13px;color:var(--dim);}
+    .ms-archemeta b{color:var(--ink2);font-family:'IBM Plex Mono',monospace;}
+    .ms-dot{color:#444;}
+    .ms-wr{margin-left:auto;display:flex;flex-direction:column;gap:8px;align-items:flex-end;}
+    .ms-wrcore{display:flex;align-items:baseline;gap:14px;}
+    .ms-wrnum{font-family:'IBM Plex Mono',monospace;font-size:40px;font-weight:700;color:var(--acc);line-height:1;letter-spacing:-1px;}
+    .ms-wrnum i{font-size:18px;font-style:normal;opacity:.6;}
+    .ms-wrcol{display:flex;flex-direction:column;}
+    .ms-wrcol b{font-family:'IBM Plex Mono',monospace;font-size:17px;color:var(--ink);white-space:nowrap;}
+    .ms-wrcol span{font-size:10.5px;color:var(--dim);}
+    .ms-wrwarn{font-size:11px;color:var(--dim);max-width:340px;text-align:right;line-height:1.4;}
+    .ms-wrwarn i{font-style:normal;color:var(--acc);margin-right:3px;}
+    .ms-export{align-self:center;background:#0a0b0e;color:var(--acc);border:1px solid var(--line);border-radius:6px;padding:11px 15px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:all .12s;}
+    .ms-export span{font-size:13px;}
+    .ms-export:hover{background:var(--acc);color:var(--acc-ink);border-color:var(--acc);}
+
+    .ms-colhd,.ms-row{display:grid;grid-template-columns:40px 1fr 240px 78px 46px;align-items:center;gap:18px;padding:0 26px;}
+    .ms-noart .ms-colhd,.ms-noart .ms-row{grid-template-columns:1fr 240px 78px 46px;}
+    .ms-colhd{height:34px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--dim);border-bottom:1px solid var(--line);position:sticky;top:62px;background:var(--bg);z-index:20;}
+    .ms-colhd>span{white-space:nowrap;overflow:hidden;}
+
+    .ms-ghd{display:flex;align-items:center;gap:12px;padding:11px 26px 9px;background:var(--pan2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);position:sticky;top:96px;z-index:15;}
+    .ms-gtick{width:9px;height:9px;border-radius:2px;background:var(--acc);}
+    .ms-flex .ms-gtick{background:var(--ink2);opacity:.5;} .ms-tech .ms-gtick{background:var(--dim);opacity:.5;}
+    .ms-glabel{font-family:'IBM Plex Mono',monospace;font-weight:700;letter-spacing:3px;font-size:13px;}
+    .ms-core .ms-glabel{color:var(--acc);} .ms-flex .ms-glabel{color:var(--ink2);} .ms-tech .ms-glabel{color:var(--dim);}
+    .ms-grule{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dim);border:1px solid var(--line);border-radius:3px;padding:1px 7px;}
+    .ms-gdesc{font-size:12px;color:var(--dim);}
+    .ms-gcount{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--dim);}
+
+    .ms-row{height:50px;border-bottom:1px solid #181a1f;transition:background .08s;}
+    .ms-row:hover{background:var(--pan);}
+    .ms-d-compact .ms-row{height:42px;} .ms-d-comfy .ms-row{height:60px;}
+    .ms-thumb{width:40px;height:38px;border-radius:4px;overflow:hidden;border:1px solid var(--line);background:#000;}
+    .ms-thumb img{width:100%;height:100%;object-fit:cover;object-position:center 18%;}
+    .ms-name{display:flex;flex-direction:column;gap:3px;min-width:0;}
+    .ms-nm{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .ms-d-comfy .ms-nm{font-size:15px;}
+    .ms-meta{display:flex;align-items:center;gap:8px;}
+    .ms-ty{font-size:10.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .ms-pips{display:inline-flex;gap:2px;} .ms-pip{width:8px;height:8px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.4);} .ms-pipc{background:#54585f;}
+    .ms-incl{display:flex;align-items:center;gap:12px;}
+    .ms-meter{flex:1;height:7px;background:#1c1e24;border-radius:3px;overflow:hidden;}
+    .ms-meter span{display:block;height:100%;background:var(--acc);border-radius:3px;}
+    .ms-pct{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;min-width:42px;text-align:right;}
+    .ms-pct i{font-size:9px;color:var(--dim);font-style:normal;}
+    .ms-avg{font-family:'IBM Plex Mono',monospace;font-size:15px;color:var(--ink2);display:flex;align-items:baseline;gap:5px;cursor:help;}
+    .ms-avg i{font-style:normal;font-size:8.5px;letter-spacing:1px;color:var(--dim);font-family:'IBM Plex Sans',sans-serif;}
+    .ms-n{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--dim);text-align:right;}
+    .ms-empty{padding:14px 26px;color:var(--dim);font-size:12px;}
+
+    .ms-foot{display:flex;align-items:center;gap:16px;padding:22px 26px 0;}
+    .ms-footnote{font-size:11.5px;color:var(--dim);line-height:1.5;max-width:640px;}
+
+    .ms-hover{position:fixed;z-index:80;pointer-events:none;width:240px;border-radius:12px;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.7);border:1px solid #2a2e38;}
+    .ms-hover img{width:100%;display:block;}
+    `;
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

@@ -6,6 +6,7 @@ import type {
   CardStatsResponse,
   WinrateResponse,
 } from "@/lib/types/cardStats";
+import type { ListEventsResponse } from "@/lib/types/listEvents";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,7 @@ export default async function Home({
     : undefined;
   const archetype = matched ?? archetypes[0];
 
-  const [mainRes, sideRes, winrateRes] = await Promise.all([
+  const [mainRes, sideRes, winrateRes, eventsRes] = await Promise.all([
     supabase.rpc("archetype_card_stats", {
       p_format: format,
       p_archetype_id: archetype.id,
@@ -83,12 +84,19 @@ export default async function Home({
       p_date_from: from,
       p_date_to: to,
     }),
+    supabase.rpc("list_events", {
+      p_format: format,
+      p_archetype_id: archetype.id,
+      p_date_from: from,
+      p_date_to: to,
+    }),
   ]);
 
   const firstErr =
     mainRes.error?.message ??
     sideRes.error?.message ??
-    winrateRes.error?.message;
+    winrateRes.error?.message ??
+    eventsRes.error?.message;
   if (firstErr) {
     return <EmptyState format={format} error={firstErr} />;
   }
@@ -111,6 +119,7 @@ export default async function Home({
       mainStats={mainRes.data as CardStatsResponse}
       sideStats={sideRes.data as CardStatsResponse}
       winrate={winrateRes.data as WinrateResponse}
+      events={(eventsRes.data ?? []) as ListEventsResponse}
       dateLabel={dateLabel(from, to)}
       formatLabel={formatTitle(format)}
     />

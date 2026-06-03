@@ -7,7 +7,11 @@ import { Logo } from "./Logo";
 
 type ArchetypeOption = { slug: string; name: string };
 
+export type ViewMode = "aggregate" | "lists";
+
 type Props = {
+  mode: ViewMode;
+  onModeChange: (m: ViewMode) => void;
   zone: Zone;
   onZoneChange: (z: Zone) => void;
   formatLabel: string;
@@ -18,6 +22,8 @@ type Props = {
 };
 
 export function Header({
+  mode,
+  onModeChange,
   zone,
   onZoneChange,
   formatLabel,
@@ -51,21 +57,48 @@ export function Header({
         <FilterGroup label="Date" value={dateLabel} />
         <FilterGroup label="Scope" fixed value="CHALLENGES" />
       </div>
-      <div className={styles.zone} role="group" aria-label="zone toggle">
-        <button
-          className={zone === "main" ? styles.on : ""}
-          onClick={() => onZoneChange("main")}
-          type="button"
-        >
-          MAIN
-        </button>
-        <button
-          className={zone === "side" ? styles.on : ""}
-          onClick={() => onZoneChange("side")}
-          type="button"
-        >
-          SIDE
-        </button>
+      <div
+        style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}
+      >
+        <div className={styles.modeToggle} role="group" aria-label="view mode">
+          <button
+            className={mode === "aggregate" ? styles.on : ""}
+            onClick={() => onModeChange("aggregate")}
+            type="button"
+          >
+            AGGREGATE
+          </button>
+          <button
+            className={mode === "lists" ? styles.on : ""}
+            onClick={() => onModeChange("lists")}
+            type="button"
+          >
+            LISTS
+          </button>
+        </div>
+        {mode === "aggregate" && (
+          <div
+            className={styles.zone}
+            role="group"
+            aria-label="zone toggle"
+            style={{ marginLeft: 0 }}
+          >
+            <button
+              className={zone === "main" ? styles.on : ""}
+              onClick={() => onZoneChange("main")}
+              type="button"
+            >
+              MAIN
+            </button>
+            <button
+              className={zone === "side" ? styles.on : ""}
+              onClick={() => onZoneChange("side")}
+              type="button"
+            >
+              SIDE
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );
