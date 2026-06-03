@@ -22,6 +22,7 @@ type HoverState = { row: BucketedRow; x: number; y: number } | null;
 
 type Props = {
   archetype: ArchetypeMeta;
+  archetypeOptions: Array<{ slug: string; name: string }>;
   mainStats: CardStatsResponse;
   sideStats: CardStatsResponse;
   winrate: WinrateResponse;
@@ -31,6 +32,7 @@ type Props = {
 
 export function LandingClient({
   archetype,
+  archetypeOptions,
   mainStats,
   sideStats,
   winrate,
@@ -61,6 +63,8 @@ export function LandingClient({
         onZoneChange={setZone}
         formatLabel={formatLabel}
         archetypeLabel={archetype.name}
+        archetypeOptions={archetypeOptions}
+        currentArchetypeSlug={archetype.slug}
         dateLabel={dateLabel}
       />
       <SubHeader

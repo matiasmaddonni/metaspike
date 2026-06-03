@@ -100,9 +100,14 @@ export default async function Home({
     colors: [],
   };
 
+  const archetypeOptions = archetypes
+    .filter((a) => a.slug !== null)
+    .map((a) => ({ slug: a.slug as string, name: a.name }));
+
   return (
     <LandingClient
       archetype={archetypeMeta}
+      archetypeOptions={archetypeOptions}
       mainStats={mainRes.data as CardStatsResponse}
       sideStats={sideRes.data as CardStatsResponse}
       winrate={winrateRes.data as WinrateResponse}
