@@ -1,95 +1,113 @@
 import { createClient } from "@/lib/supabase/server";
+import { EmptyState } from "./_components/EmptyState";
+import { LandingClient } from "./_components/LandingClient";
+import type {
+  ArchetypeMeta,
+  CardStatsResponse,
+  WinrateResponse,
+} from "@/lib/types/cardStats";
 
 export const dynamic = "force-dynamic";
 
-type Archetype = { id: number; format: string; name: string; slug: string | null };
+const DEFAULT_FORMAT = "modern";
+const DEFAULT_DATE_FROM = "2026-03-05";
+const DEFAULT_DATE_TO = "2026-06-03";
 
-export default async function Home() {
+type SearchParams = {
+  format?: string;
+  archetype?: string;
+  from?: string;
+  to?: string;
+};
+
+function dateLabel(from: string, to: string): string {
+  if (from === DEFAULT_DATE_FROM && to === DEFAULT_DATE_TO) {
+    return "last 90 days";
+  }
+  return `${from} → ${to}`;
+}
+
+function formatTitle(format: string): string {
+  return format.charAt(0).toUpperCase() + format.slice(1);
+}
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const params = await searchParams;
+  const format = (params.format ?? DEFAULT_FORMAT).toLowerCase();
+  const from = params.from ?? DEFAULT_DATE_FROM;
+  const to = params.to ?? DEFAULT_DATE_TO;
+
   const supabase = await createClient();
-  const { data: archetypes, error } = await supabase
+
+  const { data: archetypes, error: archErr } = await supabase
     .from("archetype")
     .select("id, format, name, slug")
-    .order("format")
+    .eq("format", format)
     .order("name");
 
+  if (archErr) {
+    return <EmptyState format={format} error={archErr.message} />;
+  }
+  if (!archetypes || archetypes.length === 0) {
+    return <EmptyState format={format} />;
+  }
+
+  const requestedSlug = params.archetype;
+  const matched = requestedSlug
+    ? archetypes.find((a) => a.slug === requestedSlug)
+    : undefined;
+  const archetype = matched ?? archetypes[0];
+
+  const [mainRes, sideRes, winrateRes] = await Promise.all([
+    supabase.rpc("archetype_card_stats", {
+      p_format: format,
+      p_archetype_id: archetype.id,
+      p_date_from: from,
+      p_date_to: to,
+      p_zone: "main",
+    }),
+    supabase.rpc("archetype_card_stats", {
+      p_format: format,
+      p_archetype_id: archetype.id,
+      p_date_from: from,
+      p_date_to: to,
+      p_zone: "side",
+    }),
+    supabase.rpc("archetype_winrate", {
+      p_format: format,
+      p_archetype_id: archetype.id,
+      p_date_from: from,
+      p_date_to: to,
+    }),
+  ]);
+
+  const firstErr =
+    mainRes.error?.message ??
+    sideRes.error?.message ??
+    winrateRes.error?.message;
+  if (firstErr) {
+    return <EmptyState format={format} error={firstErr} />;
+  }
+
+  const archetypeMeta: ArchetypeMeta = {
+    name: archetype.name,
+    format: archetype.format,
+    slug: archetype.slug,
+    colors: [],
+  };
+
   return (
-    <main style={{ padding: 40, maxWidth: 1280, margin: "0 auto" }}>
-      <header style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32 }}>
-        <svg width={30} height={22} viewBox="0 0 30 22" aria-hidden>
-          <path
-            d="M1 15 H8 L12 15 L15.5 3 L19 13 L21.5 9 H29"
-            fill="none"
-            stroke="var(--accent)"
-            strokeWidth={2.2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        <span
-          className="mono"
-          style={{ fontSize: 17, fontWeight: 600, letterSpacing: "0.5px", color: "var(--ink)" }}
-        >
-          metaspike
-        </span>
-      </header>
-
-      <section style={{ borderTop: "1px solid var(--line)", paddingTop: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.3px", margin: 0 }}>
-          Backend ready
-        </h1>
-        <p style={{ color: "var(--dim)", marginTop: 8, maxWidth: 640, lineHeight: 1.55 }}>
-          All four RPCs are live (<code>archetype_card_stats</code>, <code>archetype_winrate</code>,
-          <code> list_decks</code>, <code>compare_decks</code>). The landing view ships next — wiring
-          this to the Card-spread layout from the design handoff.
-        </p>
-
-        <h2
-          className="mono"
-          style={{
-            fontSize: 11,
-            letterSpacing: 1.5,
-            textTransform: "uppercase",
-            color: "var(--dim)",
-            marginTop: 32,
-            marginBottom: 12,
-          }}
-        >
-          Archetypes seeded
-        </h2>
-
-        {error ? (
-          <p style={{ color: "var(--accent)" }}>error: {error.message}</p>
-        ) : (archetypes ?? []).length === 0 ? (
-          <p style={{ color: "var(--dim)" }}>
-            None yet. Insert into <code>public.archetype</code> + <code>archetype_match_rule</code>{" "}
-            then run <code>npm run classify</code>.
-          </p>
-        ) : (
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {(archetypes as Archetype[]).map((a) => (
-              <li
-                key={a.id}
-                style={{
-                  display: "flex",
-                  gap: 16,
-                  padding: "10px 0",
-                  borderBottom: "1px solid var(--row-divider)",
-                }}
-              >
-                <span className="mono" style={{ color: "var(--dim)", minWidth: 80 }}>
-                  {a.format}
-                </span>
-                <span style={{ color: "var(--ink)" }}>{a.name}</span>
-                {a.slug && (
-                  <span className="mono" style={{ color: "var(--dim)", marginLeft: "auto" }}>
-                    /{a.slug}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </main>
+    <LandingClient
+      archetype={archetypeMeta}
+      mainStats={mainRes.data as CardStatsResponse}
+      sideStats={sideRes.data as CardStatsResponse}
+      winrate={winrateRes.data as WinrateResponse}
+      dateLabel={dateLabel(from, to)}
+      formatLabel={formatTitle(format)}
+    />
   );
 }
