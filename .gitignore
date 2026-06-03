@@ -1,0 +1,28 @@
+# dependencies
+/node_modules
+
+# env (commit .env.example only)
+.env
+.env.*
+!.env.example
+
+# typescript build artifacts
+*.tsbuildinfo
+
+# OS
+.DS_Store
+
+# Supabase local runtime
+supabase/.temp
+supabase/.branches
+
+# Raw caches — large, regenerable, never committed
+/data
+
+# misc debug
+npm-debug.log*
+yarn-debug.log*
+.pnpm-debug.log*
+
+# claude code runtime artifacts (launch.json + skills/ stay tracked)
+.claude/*.lock
