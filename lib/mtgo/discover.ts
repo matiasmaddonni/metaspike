@@ -20,7 +20,21 @@ async function fetchMonthIndex(year: number, month: number): Promise<string> {
     const stats = await stat(cachePath);
     const age = Date.now() - stats.mtimeMs;
     if (age < INDEX_TTL_MS) {
-      return readFile(cachePath, "utf-8");
+      const cached = await readFile(cachePath, "utf-8");
+      try {
+        assertValidIndex(
+          cached,
+          `cache:${cachePath}`,
+          year,
+          month,
+        );
+        return cached;
+      } catch (e) {
+        console.warn(
+          `[discover] cached month index invalid (${(e as Error).message.split(";")[0]}); re-fetching`,
+        );
+        // fall through to live fetch
+      }
     }
   }
 
@@ -38,8 +52,28 @@ async function fetchMonthIndex(year: number, month: number): Promise<string> {
     throw new Error(`MTGO month index fetch failed: HTTP ${res.status} for ${url}`);
   }
   const html = await res.text();
+  assertValidIndex(html, url, year, month);
   await writeFile(cachePath, html, "utf-8");
   return html;
+}
+
+// MTGO sometimes returns a partial/empty page (~29KB, no decklist links) for
+// the year+month query — possibly during their data refresh cycle. Reject any
+// response that doesn't carry meaningful decklist content so we never cache it.
+const MIN_DECKLIST_LINKS = 10;
+
+function assertValidIndex(
+  html: string,
+  url: string,
+  year: number,
+  month: number,
+): void {
+  const linkCount = (html.match(/\/decklist\//g) ?? []).length;
+  if (linkCount < MIN_DECKLIST_LINKS) {
+    throw new Error(
+      `MTGO month index for ${year}-${String(month).padStart(2, "0")} contains only ${linkCount} /decklist/ links (expected >=${MIN_DECKLIST_LINKS}); refusing to cache. URL: ${url}`,
+    );
+  }
 }
 
 function monthsBetween(from: string, to: string): Array<{ year: number; month: number }> {
