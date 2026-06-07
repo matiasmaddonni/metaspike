@@ -46,15 +46,39 @@ async function fetchMonthIndex(year: number, month: number): Promise<string> {
   const mm = String(month).padStart(2, "0");
   const url = `https://www.mtgo.com/decklists?year=${year}&month=${mm}`;
   const ua = process.env.MTGO_PROBE_UA ?? DEFAULT_UA;
-  const res = await fetch(url, { headers: { "User-Agent": ua } });
-  lastIndexFetchAt = Date.now();
-  if (!res.ok) {
-    throw new Error(`MTGO month index fetch failed: HTTP ${res.status} for ${url}`);
+
+  const MAX_ATTEMPTS = 4;
+  let lastErr: Error | null = null;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (attempt > 1) {
+      const backoff = 1500 * attempt;
+      console.warn(
+        `[discover] ${year}-${mm} retry ${attempt}/${MAX_ATTEMPTS} after ${backoff}ms (${lastErr?.message?.split(";")[0] ?? "unknown"})`,
+      );
+      await new Promise((r) => setTimeout(r, backoff));
+    }
+    const res = await fetch(url, { headers: { "User-Agent": ua } });
+    lastIndexFetchAt = Date.now();
+    if (!res.ok) {
+      lastErr = new Error(
+        `MTGO month index fetch failed: HTTP ${res.status} for ${url}`,
+      );
+      continue;
+    }
+    const html = await res.text();
+    try {
+      assertValidIndex(html, url, year, month);
+    } catch (e) {
+      lastErr = e as Error;
+      continue;
+    }
+    await writeFile(cachePath, html, "utf-8");
+    return html;
   }
-  const html = await res.text();
-  assertValidIndex(html, url, year, month);
-  await writeFile(cachePath, html, "utf-8");
-  return html;
+  throw (
+    lastErr ??
+    new Error(`MTGO month index fetch failed after ${MAX_ATTEMPTS} attempts: ${url}`)
+  );
 }
 
 // MTGO sometimes returns a partial/empty page (~29KB, no decklist links) for
