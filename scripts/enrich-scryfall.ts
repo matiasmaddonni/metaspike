@@ -85,15 +85,27 @@ console.log(
   `[resolve] matched=${matched.length} unmatched=${unmatched.length}`,
 );
 
+// Several distinct MTGO card_names can resolve to the same printing — a DFC's
+// front-face name alongside its full "A // B" name, or an entry in
+// lib/scryfall/aliases.ts. That is correct for the deck_cards mapping below,
+// which is many-to-one, but a single upsert batch cannot carry the same
+// primary key twice: Postgres rejects it with "ON CONFLICT DO UPDATE command
+// cannot affect row a second time". Dedupe on the way in.
+const cardRows = [
+  ...new Map(matched.map((m) => [m.card_row.scryfall_id, m.card_row])).values(),
+];
+
 const BATCH = 500;
-for (let i = 0; i < matched.length; i += BATCH) {
-  const slice = matched.slice(i, i + BATCH).map((m) => m.card_row);
+for (let i = 0; i < cardRows.length; i += BATCH) {
+  const slice = cardRows.slice(i, i + BATCH);
   const { error } = await supa
     .from("cards")
     .upsert(slice, { onConflict: "scryfall_id" });
   if (error) throw new Error(`cards upsert failed: ${error.message}`);
 }
-console.log(`[cards] upserted ${matched.length} rows`);
+console.log(
+  `[cards] upserted ${cardRows.length} rows (${matched.length} names → ${cardRows.length} printings)`,
+);
 
 let updated = 0;
 for (let i = 0; i < matched.length; i += BATCH) {

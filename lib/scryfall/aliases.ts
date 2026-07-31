@@ -17,6 +17,8 @@
 export const MTGO_NAME_ALIASES: Record<string, string> = {
   // --- Spider-Man set (OM1) ---
   "Ademi of the Silkchutes": "Spectacular Spider-Man",
+  "Cam and Farrik, Havoc Duo": "Hobgoblin, Mantled Marauder",
+  "Detect Intrusion": "Spider-Sense",
   "Fire-Brained Scheme": "Heroes' Hangout",
   "Kavaero, Mind-Bitten": "Superior Spider-Man",
   "Kraza, the Swarm as One": "Spider-Punk",
