@@ -22,7 +22,6 @@ type Props = {
 export function DetailColumns({ deck, totalDecksInScope }: Props) {
   const [copied, setCopied] = useState(false);
   const mainGroups = groupByType(deck.main);
-  const sideGroups = groupByType(deck.side);
   const mainCount = totalQty(deck.main);
   const sideCount = totalQty(deck.side);
   const tier = rankTier(deck.rank);
